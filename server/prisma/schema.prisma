@@ -1,0 +1,38 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+model InventoryItem {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  description  String?
+  category     String
+  quantity     Int
+  unitPrice    Float
+  reorderPoint Int
+  status       String        // "in_stock", "low_stock", "out_of_stock"
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  createdBy    String        @db.ObjectId
+  updatedBy    String?       @db.ObjectId
+  transactions Transaction[]
+}
+
+model Transaction {
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
+  type      String        // "stock-in", "stock-out", "adjustment"
+  quantity  Int
+  date      DateTime      @default(now())
+  notes     String?
+  itemId    String        @db.ObjectId
+  item      InventoryItem @relation(fields: [itemId], references: [id])
+  createdBy String        @db.ObjectId
+} 
