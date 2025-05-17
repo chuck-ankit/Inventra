@@ -78,8 +78,8 @@ inventra/
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com//inventra.git
-   cd inventra
+   git clone https://github.com/chuck-ankit/Inventra.git
+   cd Inventra
    ```
 
 2. Install dependencies:
