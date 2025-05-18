@@ -70,7 +70,12 @@ const Sidebar = ({ onClose }: SidebarProps) => {
       {/* Logo and Toggle */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200">
         {!collapsed && (
-          <h1 className="text-xl font-bold text-gray-900">Inventra</h1>
+          <div className="flex items-center">
+            <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
+              <Package size={20} className="text-white" />
+            </div>
+            <h1 className="ml-2 text-xl font-bold text-gray-900">Inventra</h1>
+          </div>
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}

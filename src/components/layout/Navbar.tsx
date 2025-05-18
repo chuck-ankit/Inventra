@@ -1,5 +1,5 @@
 import { useAuthStore } from '../../stores/authStore';
-import { Bell, User, LogOut, Menu, Search, X, Settings, HelpCircle } from 'lucide-react';
+import { Bell, User, LogOut, Menu, Settings, HelpCircle, Package } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import db from '../../db/db';
 import { LowStockAlert } from '../../types';
@@ -15,12 +15,8 @@ const Navbar = ({ toggleSidebar }: NavbarProps) => {
   const [alerts, setAlerts] = useState<LowStockAlert[]>([]);
   const [alertItems, setAlertItems] = useState<Record<string, any>>({});
   const [showAlerts, setShowAlerts] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const alertsRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -72,9 +68,6 @@ const Navbar = ({ toggleSidebar }: NavbarProps) => {
       if (alertsRef.current && !alertsRef.current.contains(event.target as Node)) {
         setShowAlerts(false);
       }
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowSearch(false);
-      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -83,31 +76,11 @@ const Navbar = ({ toggleSidebar }: NavbarProps) => {
     };
   }, []);
 
-  // Close search on route change
-  useEffect(() => {
-    setShowSearch(false);
-  }, [location.pathname]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/inventory?search=${encodeURIComponent(searchQuery.trim())}`);
-      setShowSearch(false);
-      setSearchQuery('');
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      setShowSearch(false);
-      setSearchQuery('');
-    }
-  };
-
   return (
     <header className="bg-white shadow-sm z-10 sticky top-0 backdrop-blur-sm bg-white/90">
       <div className="px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
+        <div className="flex items-center justify-between h-16">
+          {/* Left section - Logo and Mobile Menu */}
           <div className="flex items-center">
             <button 
               onClick={toggleSidebar}
@@ -117,41 +90,15 @@ const Navbar = ({ toggleSidebar }: NavbarProps) => {
               <Menu size={24} />
             </button>
             <div className="flex items-center ml-2 md:ml-0 group">
-              <img src="/logo.svg" alt="Inventra Logo" className="h-8 w-8 transition-transform duration-200 group-hover:scale-105" />
+              <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
+                <Package size={20} className="text-white" />
+              </div>
               <h1 className="ml-2 text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors duration-200">Inventra</h1>
             </div>
           </div>
           
-          {/* Search Bar */}
-          <div className="flex-1 max-w-2xl mx-4 hidden md:block" ref={searchRef}>
-            <form onSubmit={handleSearch} className="relative">
-              <input
-                type="text"
-                placeholder="Search inventory..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setIsSearchFocused(false)}
-                className={`w-full h-10 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-500 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                  isSearchFocused ? 'shadow-md' : ''
-                }`}
-              />
-              <Search className={`absolute left-3 top-2.5 h-5 w-5 transition-colors duration-200 ${
-                isSearchFocused ? 'text-blue-500' : 'text-gray-400'
-              }`} />
-            </form>
-          </div>
-          
+          {/* Right section - Actions */}
           <div className="flex items-center space-x-2">
-            {/* Mobile Search Button */}
-            <button
-              onClick={() => setShowSearch(!showSearch)}
-              className="p-2 text-gray-500 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg md:hidden transition-colors duration-200"
-              aria-label="Search"
-            >
-              <Search size={20} />
-            </button>
-
             {/* Quick Actions */}
             <div className="hidden md:flex items-center space-x-1">
               <button
@@ -282,32 +229,6 @@ const Navbar = ({ toggleSidebar }: NavbarProps) => {
           </div>
         </div>
       </div>
-
-      {/* Mobile Search Bar */}
-      {showSearch && (
-        <div className="md:hidden px-4 py-2 border-t border-gray-200 animate-slideDown">
-          <form onSubmit={handleSearch} className="relative">
-            <input
-              type="text"
-              placeholder="Search inventory..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handleKeyDown}
-              autoFocus
-              className="w-full h-10 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-500 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-            <button
-              type="button"
-              onClick={() => setShowSearch(false)}
-              className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 transition-colors duration-200"
-              aria-label="Close search"
-            >
-              <X size={20} />
-            </button>
-          </form>
-        </div>
-      )}
     </header>
   );
 };

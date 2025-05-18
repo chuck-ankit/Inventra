@@ -32,11 +32,15 @@ router.get('/transactions', authMiddleware, async (req: AuthRequest, res) => {
     };
     
     if (startDate) {
-      query.date = { $gte: new Date(startDate as string) };
+      const start = new Date(startDate as string);
+      start.setHours(0, 0, 0, 0); // Set to beginning of day
+      query.date = { $gte: start };
     }
     
     if (endDate) {
-      query.date = { ...query.date, $lte: new Date(endDate as string) };
+      const end = new Date(endDate as string);
+      end.setHours(23, 59, 59, 999); // Set to end of day
+      query.date = { ...query.date, $lte: end };
     }
     
     if (transactionType) {
@@ -44,25 +48,22 @@ router.get('/transactions', authMiddleware, async (req: AuthRequest, res) => {
     }
     
     const transactions = await Transaction.find(query)
-      .populate('itemId', 'name category unitPrice')
+      .populate<{ itemId: { name: string; category: string; unitPrice: number }; createdBy: { username: string } }>('itemId', 'name category unitPrice')
       .populate('createdBy', 'username')
       .sort({ date: -1 });
     
     // Transform the data for the report
-    const reportData = transactions.map(transaction => {
-      console.log('Transaction notes:', transaction.notes); // Debug log
-      return {
-        id: transaction._id,
-        date: transaction.date,
-        itemName: transaction.itemId?.name || 'Deleted Item',
-        itemCategory: transaction.itemId?.category || 'N/A',
-        type: transaction.type,
-        quantity: transaction.quantity,
-        totalValue: transaction.quantity * (transaction.itemId?.unitPrice || 0),
-        notes: transaction.notes || '',
-        createdBy: transaction.createdBy?.username || 'Unknown'
-      };
-    });
+    const reportData = transactions.map(transaction => ({
+      id: transaction._id,
+      date: transaction.date,
+      itemName: transaction.itemId?.name || 'Deleted Item',
+      itemCategory: transaction.itemId?.category || 'N/A',
+      type: transaction.type,
+      quantity: transaction.quantity,
+      totalValue: transaction.quantity * (transaction.itemId?.unitPrice || 0),
+      notes: transaction.notes || '',
+      createdBy: transaction.createdBy?.username || 'Unknown'
+    }));
     
     res.json(reportData);
   } catch (error: any) {
@@ -95,11 +96,15 @@ router.get('/inventory', authMiddleware, async (req: AuthRequest, res) => {
       const transactionQuery: any = { itemId: item._id };
       
       if (startDate) {
-        transactionQuery.date = { $gte: new Date(startDate as string) };
+        const start = new Date(startDate as string);
+        start.setHours(0, 0, 0, 0); // Set to beginning of day
+        transactionQuery.date = { $gte: start };
       }
       
       if (endDate) {
-        transactionQuery.date = { ...transactionQuery.date, $lte: new Date(endDate as string) };
+        const end = new Date(endDate as string);
+        end.setHours(23, 59, 59, 999); // Set to end of day
+        transactionQuery.date = { ...transactionQuery.date, $lte: end };
       }
       
       const [stockIn, stockOut] = await Promise.all([

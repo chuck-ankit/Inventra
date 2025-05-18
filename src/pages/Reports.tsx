@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useReportStore } from '../stores/reportStore';
 import { 
   FileText, 
@@ -22,6 +22,7 @@ import {
 } from 'chart.js';
 import { Bar, Line, Pie } from 'react-chartjs-2';
 import { ReportFilter, Transaction } from '../types';
+import debounce from 'lodash/debounce';
 
 // Register ChartJS components
 ChartJS.register(
@@ -64,49 +65,57 @@ const Reports = () => {
   } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [filter, setFilter] = useState<ReportFilter>({});
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const refreshInterval = useRef<NodeJS.Timeout>();
 
-  // Fetch transactions on component mount
+  // Set initial date range
   useEffect(() => {
-    const loadInitialData = async () => {
-      // Set default date range to last 30 days
-      const end = new Date();
-      const start = new Date();
-      start.setDate(start.getDate() - 30);
-      
-      setStartDate(start.toISOString().split('T')[0]);
-      setEndDate(end.toISOString().split('T')[0]);
-      
-      // Fetch transactions with this default date range
-      await fetchTransactions({
-        startDate: start.toISOString().split('T')[0],
-        endDate: end.toISOString().split('T')[0]
-      });
-    };
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 30);
     
-    loadInitialData();
+    const startDateStr = start.toISOString().split('T')[0];
+    const endDateStr = end.toISOString().split('T')[0];
+    
+    setStartDate(startDateStr);
+    setEndDate(endDateStr);
+    
+    // Set initial filter with date range
+    setFilter({
+      startDate: startDateStr,
+      endDate: endDateStr
+    });
+  }, []); // Empty dependency array means this runs once on mount
 
-    // Set up real-time refresh for inventory data
-    if (activeTab === 'inventory') {
-      refreshInterval.current = setInterval(async () => {
-        const report = await generateInventoryReport(filter);
-        setReportData(report);
-        prepareInventoryChartData(report);
-      }, 30000); // Refresh every 30 seconds
-    }
-
-    // Cleanup interval on unmount or tab change
-    return () => {
-      if (refreshInterval.current) {
-        clearInterval(refreshInterval.current);
+  // Debounced apply filters function
+  const debouncedApplyFilters = useCallback(
+    debounce(async (newFilter: ReportFilter) => {
+      setIsRefreshing(true);
+      try {
+        if (activeTab === 'transactions') {
+          await fetchTransactions(newFilter);
+          const report = await generateTransactionReport(newFilter);
+          setReportData(report);
+          prepareTransactionChartData(report);
+        } else if (activeTab === 'inventory') {
+          const report = await generateInventoryReport(newFilter);
+          setReportData(report);
+          prepareInventoryChartData(report);
+        }
+      } finally {
+        setIsRefreshing(false);
       }
-    };
-  }, [fetchTransactions, activeTab, filter, generateInventoryReport]);
+    }, 500),
+    [activeTab, fetchTransactions, generateTransactionReport, generateInventoryReport]
+  );
 
-  // Effect to apply filters when tab changes
+  // Effect to apply filters when they change
   useEffect(() => {
-    applyFilters();
-    
+    debouncedApplyFilters(filter);
+  }, [filter, debouncedApplyFilters]);
+
+  // Effect to handle tab changes
+  useEffect(() => {
     // Clear existing interval
     if (refreshInterval.current) {
       clearInterval(refreshInterval.current);
@@ -114,46 +123,21 @@ const Reports = () => {
 
     // Set up new interval if on inventory tab
     if (activeTab === 'inventory') {
-      refreshInterval.current = setInterval(async () => {
-        const report = await generateInventoryReport(filter);
-        setReportData(report);
-        prepareInventoryChartData(report);
+      refreshInterval.current = setInterval(() => {
+        debouncedApplyFilters(filter);
       }, 30000); // Refresh every 30 seconds
     }
-  }, [activeTab, filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Add loading indicator for real-time updates
-  const [isRefreshing, setIsRefreshing] = useState(false);
+    // Apply filters for the new tab
+    debouncedApplyFilters(filter);
 
-  // Modify applyFilters to handle real-time updates
-  const applyFilters = async () => {
-    setIsRefreshing(true);
-    const filter: ReportFilter = {};
-    
-    if (startDate) {
-      filter.startDate = startDate;
-    }
-    
-    if (endDate) {
-      filter.endDate = endDate;
-    }
-    
-    if (transactionType) {
-      filter.type = transactionType as 'stock-in' | 'stock-out';
-    }
-    
-    if (activeTab === 'transactions') {
-      await fetchTransactions(filter);
-      const report = await generateTransactionReport(filter);
-      setReportData(report);
-      prepareTransactionChartData(report);
-    } else if (activeTab === 'inventory') {
-      const report = await generateInventoryReport(filter);
-      setReportData(report);
-      prepareInventoryChartData(report);
-    }
-    setIsRefreshing(false);
-  };
+    return () => {
+      if (refreshInterval.current) {
+        clearInterval(refreshInterval.current);
+      }
+      debouncedApplyFilters.cancel();
+    };
+  }, [activeTab, filter, debouncedApplyFilters]);
 
   // Prepare transaction chart data
   const prepareTransactionChartData = (data: any[]) => {
@@ -385,18 +369,18 @@ const Reports = () => {
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFilter(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    if (name === 'transactionType') {
+      setTransactionType(value);
+    }
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFilter(prev => ({
-      ...prev,
-      [name]: value ? new Date(value) : undefined
-    }));
+    if (name === 'startDate') {
+      setStartDate(value);
+    } else if (name === 'endDate') {
+      setEndDate(value);
+    }
   };
 
   return (
@@ -511,7 +495,23 @@ const Reports = () => {
         
         <div className="mt-4 flex justify-end">
           <button
-            onClick={applyFilters}
+            onClick={() => {
+              const newFilter: ReportFilter = {};
+              
+              if (startDate) {
+                newFilter.startDate = startDate;
+              }
+              
+              if (endDate) {
+                newFilter.endDate = endDate;
+              }
+              
+              if (transactionType) {
+                newFilter.type = transactionType as 'stock-in' | 'stock-out';
+              }
+              
+              setFilter(newFilter);
+            }}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             Apply Filters

@@ -21,7 +21,7 @@ const Login = () => {
 
   const handleDemoLogin = async () => {
     clearError();
-    const success = await login('demo@example.com', 'Demo123!');
+    const success = await login('demo', 'Demo123');
     if (success) {
       navigate('/dashboard');
     }
@@ -36,7 +36,7 @@ const Login = () => {
           </div>
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          StockManager
+          Inventra
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
           Sign in to your account

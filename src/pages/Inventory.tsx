@@ -410,7 +410,7 @@ const Inventory = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50 transition-colors duration-200">
+                  <tr key={item._id || item.id} className="hover:bg-gray-50 transition-colors duration-200">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div>
