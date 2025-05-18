@@ -83,9 +83,9 @@ export const securityHeaders = {
   },
   crossOriginEmbedderPolicy: false,
   crossOriginOpenerPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginResourcePolicy: { policy: "cross-origin" as const },
   dnsPrefetchControl: { allow: false },
-  frameguard: { action: "deny" },
+  frameguard: { action: "deny" as const },
   hidePoweredBy: true,
   hsts: {
     maxAge: 31536000,
@@ -94,7 +94,7 @@ export const securityHeaders = {
   },
   ieNoOpen: true,
   noSniff: true,
-  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" as const },
   xssFilter: true
 };
 

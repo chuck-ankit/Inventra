@@ -58,9 +58,9 @@ router.get('/stats', authMiddleware, async (req: AuthRequest, res) => {
         const itemId = t.itemId as PopulatedItem;
         return {
           id: t._id.toString(),
-          itemId: itemId?._id?.toString() || '',
-          itemName: itemId?.name || 'Deleted Item',
-          itemCategory: itemId?.category || 'N/A',
+          itemId: itemId._id.toString(),
+          itemName: itemId.name,
+          itemCategory: itemId.category,
           quantity: t.quantity,
           type: t.type,
           date: t.date.toISOString(),
