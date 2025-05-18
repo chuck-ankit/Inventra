@@ -28,7 +28,7 @@ if (missingEnvVars.length > 0) {
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI!; // We know this exists due to validation above
+const MONGODB_URI = process.env.MONGODB_URI!;
 
 // Security middleware
 app.use(helmet(securityHeaders));
@@ -53,21 +53,15 @@ const mongooseOptions = {
   socketTimeoutMS: 45000,
 };
 
-// Connect to MongoDB with enhanced logging
+// Connect to MongoDB
 mongoose.connect(MONGODB_URI, mongooseOptions)
   .then(() => {
     console.log('\x1b[32m%s\x1b[0m', '✓ MongoDB Connection Established');
     console.log('\x1b[36m%s\x1b[0m', `Database: ${MONGODB_URI.split('/').pop()}`);
-    
-    app.listen(PORT, () => {
-      console.log('\x1b[32m%s\x1b[0m', `✓ Server is running on port ${PORT}`);
-      console.log('\x1b[36m%s\x1b[0m', `API URL: http://localhost:${PORT}`);
-    });
   })
   .catch((error) => {
     console.error('\x1b[31m%s\x1b[0m', '✗ MongoDB Connection Error:');
     console.error('\x1b[31m%s\x1b[0m', error.message);
-    process.exit(1);
   });
 
 // Handle MongoDB connection events
@@ -82,14 +76,13 @@ mongoose.connection.on('disconnected', () => {
 // Error handling middleware
 app.use(errorHandler);
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  try {
-    await mongoose.connection.close();
-    console.log('\x1b[32m%s\x1b[0m', 'MongoDB connection closed through app termination');
-    process.exit(0);
-  } catch (err) {
-    console.error('\x1b[31m%s\x1b[0m', 'Error during MongoDB connection closure:', err);
-    process.exit(1);
-  }
-}); 
+// Only start the server if we're not in a serverless environment
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log('\x1b[32m%s\x1b[0m', `✓ Server is running on port ${PORT}`);
+    console.log('\x1b[36m%s\x1b[0m', `API URL: http://localhost:${PORT}`);
+  });
+}
+
+// Export the Express app for Vercel
+export default app; 

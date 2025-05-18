@@ -83,7 +83,7 @@ export const securityHeaders = {
   },
   crossOriginEmbedderPolicy: false,
   crossOriginOpenerPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginResourcePolicy: { policy: "same-origin" },
   dnsPrefetchControl: { allow: false },
   frameguard: { action: "deny" },
   hidePoweredBy: true,
@@ -96,7 +96,7 @@ export const securityHeaders = {
   noSniff: true,
   referrerPolicy: { policy: "strict-origin-when-cross-origin" },
   xssFilter: true
-};
+} as const;
 
 // CORS configuration
 export const corsOptions = {

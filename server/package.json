@@ -5,7 +5,9 @@
   "scripts": {
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
-    "build": "tsc"
+    "build": "rimraf dist && tsc",
+    "postbuild": "cp package.json dist/ && cp .env.production dist/.env",
+    "vercel-build": "npm run build"
   },
   "dependencies": {
     "@prisma/client": "^6.8.2",
@@ -31,6 +33,7 @@
     "@types/helmet": "^0.0.48",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^20.17.47",
+    "rimraf": "^5.0.5",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }

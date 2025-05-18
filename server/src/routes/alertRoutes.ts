@@ -7,6 +7,9 @@ const router = express.Router();
 // Create alert
 router.post('/', authMiddleware, async (req: AuthRequest, res) => {
   try {
+    if (!req.user?.userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
     const alert = new Alert({
       ...req.body,
       createdBy: req.user.userId

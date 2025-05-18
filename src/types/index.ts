@@ -103,7 +103,7 @@ export interface TransactionHistory {
     itemName: string;
     itemCategory: string;
     quantity: number;
-    type: string;
+    type: 'stock-in' | 'stock-out' | 'adjustment';
     date: string;
     notes: string;
   }>;
