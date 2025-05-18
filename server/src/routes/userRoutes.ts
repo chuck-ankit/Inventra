@@ -70,6 +70,9 @@ router.post('/login', loginLimiter, validateLogin, handleValidationErrors, async
 // Get user profile
 router.get('/profile', authMiddleware, async (req: AuthRequest, res) => {
   try {
+    if (!req.user?.userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
     const user = await User.findById(req.user.userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -85,6 +88,9 @@ router.get('/profile', authMiddleware, async (req: AuthRequest, res) => {
 // Update user profile
 router.patch('/profile', authMiddleware, async (req: AuthRequest, res) => {
   try {
+    if (!req.user?.userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
     const updates = req.body;
     const allowedUpdates = ['username', 'email', 'firstName', 'lastName', 'preferences', 'currentPassword', 'password'];
     const isValidOperation = Object.keys(updates).every(update => allowedUpdates.includes(update));

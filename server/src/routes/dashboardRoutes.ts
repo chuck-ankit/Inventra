@@ -59,8 +59,8 @@ router.get('/stats', authMiddleware, async (req: AuthRequest, res) => {
         return {
           id: t._id.toString(),
           itemId: itemId._id.toString(),
-          itemName: itemId.name,
-          itemCategory: itemId.category,
+          itemName: itemId.name || 'Deleted Item',
+          itemCategory: itemId.category || 'N/A',
           quantity: t.quantity,
           type: t.type,
           date: t.date.toISOString(),
@@ -112,11 +112,11 @@ router.get('/transactions', authMiddleware, async (req: AuthRequest, res) => {
       },
       createdBy: req.user.userId
     })
-    .populate('itemId', 'name category')
+    .populate<{ itemId: PopulatedItem }>('itemId', 'name category')
     .populate('createdBy', 'username')
-    .sort({ date: -1 });
+    .sort({ date: -1 }) as PopulatedTransaction[];
 
-    // Group transactions by date for volume chart
+    // Initialize date map with all dates in range
     const dateMap = new Map<string, { stockIn: number; stockOut: number }>();
     for (let i = 0; i < days; i++) {
       const date = new Date(startDate);
@@ -144,23 +144,45 @@ router.get('/transactions', authMiddleware, async (req: AuthRequest, res) => {
     const stockOut = Array.from(dateMap.values()).map(v => v.stockOut);
 
     // Format transactions for history table
-    const transactionHistory = transactions.map(t => ({
-      id: t._id,
-      itemId: t.itemId,
-      itemName: t.itemId?.name || 'Deleted Item',
-      itemCategory: t.itemId?.category || 'N/A',
-      quantity: t.quantity,
-      type: t.type,
-      date: t.date,
-      notes: t.notes
-    }));
+    const transactionHistory = transactions.map(t => {
+      try {
+        const itemId = t.itemId as PopulatedItem;
+        return {
+          id: t._id.toString(),
+          itemId: itemId?._id?.toString() || '',
+          itemName: itemId?.name || 'Deleted Item',
+          itemCategory: itemId?.category || 'N/A',
+          quantity: t.quantity,
+          type: t.type,
+          date: t.date.toISOString(),
+          notes: t.notes || ''
+        };
+      } catch (error) {
+        console.error('Error formatting transaction:', error);
+        return {
+          id: t._id.toString(),
+          itemId: '',
+          itemName: 'Error loading item',
+          itemCategory: 'N/A',
+          quantity: t.quantity,
+          type: t.type,
+          date: t.date.toISOString(),
+          notes: 'Error loading item details'
+        };
+      }
+    });
 
-    res.json({
+    // Ensure we have data for all dates
+    const response = {
       labels,
       stockIn,
       stockOut,
       transactions: transactionHistory
-    });
+    };
+
+    console.log('Transaction history response:', response); // Debug log
+
+    res.json(response);
   } catch (error) {
     console.error('Error fetching transaction history:', error);
     res.status(500).json({ message: 'Failed to fetch transaction history' });

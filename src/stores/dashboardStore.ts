@@ -34,7 +34,7 @@ export const useDashboardStore = create<DashboardState>((set) => ({
     try {
       const [stats, transactionHistory, categoryData] = await Promise.all([
         dashboardApi.getDashboardStats(),
-        dashboardApi.getTransactionHistory(),
+        dashboardApi.getTransactionHistory(7), // Default to 7 days
         dashboardApi.getCategoryDistribution()
       ]);
 
