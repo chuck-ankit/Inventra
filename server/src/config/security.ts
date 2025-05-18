@@ -8,7 +8,7 @@ dotenv.config();
 const { check, validationResult } = validator as any;
 
 // Get environment variables with fallbacks
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5174';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5175';
 const API_URL = process.env.API_URL || 'http://localhost:5000';
 
 // Rate limiting configuration
@@ -100,7 +100,7 @@ export const securityHeaders = {
 
 // CORS configuration
 export const corsOptions = {
-  origin: [FRONTEND_URL, 'http://localhost:3000'],
+  origin: [FRONTEND_URL, 'http://localhost:3000', 'http://localhost:5175'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
