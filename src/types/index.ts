@@ -77,17 +77,36 @@ export interface LowStockAlert {
 
 // Dashboard types
 export interface DashboardStats {
-  totalItems: number;
+  totalProducts: number;
   totalValue: number;
-  lowStockItems: number;
-  outOfStockItems: number;
-  recentTransactions: number;
+  lowStockProducts: number;
+  totalTransactions: number;
+  recentTransactions: Array<{
+    id: string;
+    itemId: string;
+    itemName: string;
+    itemCategory: string;
+    quantity: number;
+    type: string;
+    date: string;
+    notes: string;
+  }>;
 }
 
 export interface TransactionHistory {
   labels: string[];
   stockIn: number[];
   stockOut: number[];
+  transactions: Array<{
+    id: string;
+    itemId: string;
+    itemName: string;
+    itemCategory: string;
+    quantity: number;
+    type: string;
+    date: string;
+    notes: string;
+  }>;
 }
 
 // Report types
@@ -96,6 +115,7 @@ export interface ReportFilter {
   endDate?: string;
   category?: string;
   type?: 'stock-in' | 'stock-out' | 'adjustment';
+  transactionType?: 'stock-in' | 'stock-out' | 'adjustment';
 }
 
 // Utility types

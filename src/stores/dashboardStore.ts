@@ -42,7 +42,8 @@ export const useDashboardStore = create<DashboardState>((set) => ({
         stats,
         transactionHistory,
         categoryData,
-        loading: false
+        loading: false,
+        error: null
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);

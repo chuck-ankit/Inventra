@@ -44,22 +44,25 @@ router.get('/transactions', authMiddleware, async (req: AuthRequest, res) => {
     }
     
     const transactions = await Transaction.find(query)
-      .populate('itemId', 'name category')
+      .populate('itemId', 'name category unitPrice')
       .populate('createdBy', 'username')
       .sort({ date: -1 });
     
     // Transform the data for the report
-    const reportData = transactions.map(transaction => ({
-      id: transaction._id,
-      date: transaction.date,
-      itemName: transaction.itemId?.name || 'Deleted Item',
-      itemCategory: transaction.itemId?.category || 'N/A',
-      type: transaction.type,
-      quantity: transaction.quantity,
-      totalValue: transaction.quantity * (transaction.itemId?.unitPrice || 0),
-      notes: transaction.notes,
-      createdBy: transaction.createdBy?.username || 'Unknown'
-    }));
+    const reportData = transactions.map(transaction => {
+      console.log('Transaction notes:', transaction.notes); // Debug log
+      return {
+        id: transaction._id,
+        date: transaction.date,
+        itemName: transaction.itemId?.name || 'Deleted Item',
+        itemCategory: transaction.itemId?.category || 'N/A',
+        type: transaction.type,
+        quantity: transaction.quantity,
+        totalValue: transaction.quantity * (transaction.itemId?.unitPrice || 0),
+        notes: transaction.notes || '',
+        createdBy: transaction.createdBy?.username || 'Unknown'
+      };
+    });
     
     res.json(reportData);
   } catch (error: any) {

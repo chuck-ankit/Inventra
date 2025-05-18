@@ -33,15 +33,15 @@ class ReportApiService {
     const queryParams = new URLSearchParams();
     
     if (filter.startDate) {
-      queryParams.append('startDate', filter.startDate.toISOString());
+      queryParams.append('startDate', filter.startDate);
     }
     
     if (filter.endDate) {
-      queryParams.append('endDate', filter.endDate.toISOString());
+      queryParams.append('endDate', filter.endDate);
     }
     
-    if (filter.transactionType) {
-      queryParams.append('transactionType', filter.transactionType);
+    if (filter.type) {
+      queryParams.append('transactionType', filter.type);
     }
     
     return this.request(`/reports/transactions?${queryParams.toString()}`);
@@ -51,11 +51,11 @@ class ReportApiService {
     const queryParams = new URLSearchParams();
     
     if (filter.startDate) {
-      queryParams.append('startDate', filter.startDate.toISOString());
+      queryParams.append('startDate', filter.startDate);
     }
     
     if (filter.endDate) {
-      queryParams.append('endDate', filter.endDate.toISOString());
+      queryParams.append('endDate', filter.endDate);
     }
     
     if (filter.category) {

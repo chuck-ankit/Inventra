@@ -22,7 +22,8 @@ class DashboardApiService {
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
       
-      return response.json();
+      const data = await response.json();
+      return data;
     } catch (error) {
       console.error('API Error:', error);
       throw error;
@@ -30,15 +31,15 @@ class DashboardApiService {
   }
 
   async getDashboardStats(): Promise<DashboardStats> {
-    return this.request('/dashboard/stats');
+    return this.request<DashboardStats>('/dashboard/stats');
   }
 
   async getTransactionHistory(days: number = 7): Promise<TransactionHistory> {
-    return this.request(`/dashboard/transactions?days=${days}`);
+    return this.request<TransactionHistory>(`/dashboard/transactions?days=${days}`);
   }
 
   async getCategoryDistribution(): Promise<{ labels: string[], data: number[] }> {
-    return this.request('/dashboard/categories');
+    return this.request<{ labels: string[], data: number[] }>('/dashboard/categories');
   }
 }
 

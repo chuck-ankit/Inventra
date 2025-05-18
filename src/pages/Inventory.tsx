@@ -15,7 +15,8 @@ import {
   Package,
   DollarSign,
   TrendingUp,
-  X
+  X,
+  Download
 } from 'lucide-react';
 import { InventoryItem } from '../types';
 
@@ -141,6 +142,36 @@ const Inventory = () => {
     setCategoryFilter('');
   };
 
+  // Export to CSV function
+  const exportToCSV = () => {
+    const headers = ['Name', 'Category', 'Quantity', 'Unit Price', 'Total Value', 'Reorder Point', 'Status', 'Description'];
+    const data = filteredItems.map(item => [
+      item.name,
+      item.category,
+      item.quantity,
+      item.unitPrice,
+      (item.quantity * item.unitPrice).toFixed(2),
+      item.reorderPoint,
+      item.status,
+      item.description || ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `inventory_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
@@ -169,6 +200,14 @@ const Inventory = () => {
               <TrendingUp size={20} />
             </button>
           </div>
+
+          <button
+            onClick={exportToCSV}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+          >
+            <Download size={16} className="mr-2" />
+            Export CSV
+          </button>
           
           <button 
             onClick={() => setShowAddForm(true)}

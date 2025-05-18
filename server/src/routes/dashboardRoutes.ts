@@ -2,6 +2,22 @@ import express from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { Transaction } from '../models/Transaction.js';
 import { InventoryItem } from '../models/InventoryItem.js';
+import mongoose from 'mongoose';
+
+interface PopulatedItem {
+  _id: mongoose.Types.ObjectId;
+  name: string;
+  category: string;
+}
+
+interface PopulatedTransaction extends mongoose.Document {
+  _id: mongoose.Types.ObjectId;
+  itemId: PopulatedItem;
+  quantity: number;
+  type: string;
+  date: Date;
+  notes?: string;
+}
 
 const router = express.Router();
 
@@ -33,24 +49,44 @@ router.get('/stats', authMiddleware, async (req: AuthRequest, res) => {
     const recentTransactions = await Transaction.find({ createdBy: req.user.userId })
       .sort({ date: -1 })
       .limit(5)
-      .populate('itemId', 'name category')
-      .populate('createdBy', 'username');
+      .populate<{ itemId: PopulatedItem }>('itemId', 'name category')
+      .populate('createdBy', 'username') as PopulatedTransaction[];
+
+    // Map transactions with proper error handling
+    const formattedTransactions = recentTransactions.map(t => {
+      try {
+        const itemId = t.itemId as PopulatedItem;
+        return {
+          id: t._id.toString(),
+          itemId: itemId?._id?.toString() || '',
+          itemName: itemId?.name || 'Deleted Item',
+          itemCategory: itemId?.category || 'N/A',
+          quantity: t.quantity,
+          type: t.type,
+          date: t.date.toISOString(),
+          notes: t.notes || ''
+        };
+      } catch (error) {
+        console.error('Error formatting transaction:', error);
+        return {
+          id: t._id.toString(),
+          itemId: '',
+          itemName: 'Error loading item',
+          itemCategory: 'N/A',
+          quantity: t.quantity,
+          type: t.type,
+          date: t.date.toISOString(),
+          notes: 'Error loading item details'
+        };
+      }
+    });
 
     res.json({
       totalProducts,
       lowStockProducts,
       totalValue,
       totalTransactions,
-      recentTransactions: recentTransactions.map(t => ({
-        id: t._id,
-        itemId: t.itemId,
-        itemName: t.itemId.name,
-        itemCategory: t.itemId.category,
-        quantity: t.quantity,
-        type: t.type,
-        date: t.date,
-        notes: t.notes
-      }))
+      recentTransactions: formattedTransactions
     });
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
@@ -74,7 +110,7 @@ router.get('/transactions', authMiddleware, async (req: AuthRequest, res) => {
       date: {
         $gte: startDate
       },
-      createdBy: req.user.userId // Filter by user ID
+      createdBy: req.user.userId
     })
     .populate('itemId', 'name category')
     .populate('createdBy', 'username')

@@ -17,9 +17,10 @@ import {
   BarElement,
   Title, 
   Tooltip, 
-  Legend 
+  Legend,
+  ArcElement
 } from 'chart.js';
-import { Bar, Line } from 'react-chartjs-2';
+import { Bar, Line, Pie } from 'react-chartjs-2';
 import { ReportFilter, Transaction } from '../types';
 
 // Register ChartJS components
@@ -31,7 +32,8 @@ ChartJS.register(
   BarElement,
   Title, 
   Tooltip, 
-  Legend
+  Legend,
+  ArcElement
 );
 
 const Reports = () => {
@@ -50,9 +52,19 @@ const Reports = () => {
   const [endDate, setEndDate] = useState('');
   const [transactionType, setTransactionType] = useState('');
   const [reportData, setReportData] = useState<any[]>([]);
-  const [chartData, setChartData] = useState<any>(null);
+  const [chartData, setChartData] = useState<{
+    barData?: any;
+    pieData?: any;
+    valueData?: any;
+    movementData?: any;
+    labels?: string[];
+    datasets?: any[];
+    lowStockData?: any;
+    recentChangesData?: any;
+  } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [filter, setFilter] = useState<ReportFilter>({});
+  const refreshInterval = useRef<NodeJS.Timeout>();
 
   // Fetch transactions on component mount
   useEffect(() => {
@@ -67,44 +79,80 @@ const Reports = () => {
       
       // Fetch transactions with this default date range
       await fetchTransactions({
-        startDate: start,
-        endDate: end
+        startDate: start.toISOString().split('T')[0],
+        endDate: end.toISOString().split('T')[0]
       });
     };
     
     loadInitialData();
-  }, [fetchTransactions]);
 
-  // Apply filters
+    // Set up real-time refresh for inventory data
+    if (activeTab === 'inventory') {
+      refreshInterval.current = setInterval(async () => {
+        const report = await generateInventoryReport(filter);
+        setReportData(report);
+        prepareInventoryChartData(report);
+      }, 30000); // Refresh every 30 seconds
+    }
+
+    // Cleanup interval on unmount or tab change
+    return () => {
+      if (refreshInterval.current) {
+        clearInterval(refreshInterval.current);
+      }
+    };
+  }, [fetchTransactions, activeTab, filter, generateInventoryReport]);
+
+  // Effect to apply filters when tab changes
+  useEffect(() => {
+    applyFilters();
+    
+    // Clear existing interval
+    if (refreshInterval.current) {
+      clearInterval(refreshInterval.current);
+    }
+
+    // Set up new interval if on inventory tab
+    if (activeTab === 'inventory') {
+      refreshInterval.current = setInterval(async () => {
+        const report = await generateInventoryReport(filter);
+        setReportData(report);
+        prepareInventoryChartData(report);
+      }, 30000); // Refresh every 30 seconds
+    }
+  }, [activeTab, filter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Add loading indicator for real-time updates
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Modify applyFilters to handle real-time updates
   const applyFilters = async () => {
+    setIsRefreshing(true);
     const filter: ReportFilter = {};
     
     if (startDate) {
-      filter.startDate = new Date(startDate);
+      filter.startDate = startDate;
     }
     
     if (endDate) {
-      filter.endDate = new Date(endDate);
+      filter.endDate = endDate;
     }
     
     if (transactionType) {
-      filter.transactionType = transactionType as 'stock-in' | 'stock-out';
+      filter.type = transactionType as 'stock-in' | 'stock-out';
     }
     
     if (activeTab === 'transactions') {
       await fetchTransactions(filter);
       const report = await generateTransactionReport(filter);
       setReportData(report);
-      
-      // Prepare chart data
       prepareTransactionChartData(report);
     } else if (activeTab === 'inventory') {
       const report = await generateInventoryReport(filter);
       setReportData(report);
-      
-      // Prepare chart data
       prepareInventoryChartData(report);
     }
+    setIsRefreshing(false);
   };
 
   // Prepare transaction chart data
@@ -164,27 +212,164 @@ const Reports = () => {
       return;
     }
     
-    // Sort by quantity (descending)
-    const sortedData = [...data].sort((a, b) => b.quantity - a.quantity).slice(0, 10);
+    // Process data in a single pass for better performance
+    const processedData = data.reduce((acc: any, item) => {
+      const category = item.category || 'Uncategorized';
+      
+      // Update category distribution
+      if (!acc.categories[category]) {
+        acc.categories[category] = {
+          quantity: 0,
+          value: 0,
+          stockIn: 0,
+          stockOut: 0,
+          lowStockItems: 0  // Add counter for low stock items
+        };
+      }
+      
+      // Calculate total value for the item
+      const itemValue = (item.quantity || 0) * (item.unitPrice || 0);
+      
+      acc.categories[category].quantity += item.quantity || 0;
+      acc.categories[category].value += itemValue;
+      acc.categories[category].stockIn += item.stockIn || 0;
+      acc.categories[category].stockOut += item.stockOut || 0;
+      
+      // Count items below reorder point
+      if ((item.quantity || 0) <= (item.reorderPoint || 0)) {
+        acc.categories[category].lowStockItems += 1;
+      }
+      
+      // Update top items
+      acc.topItems.push({
+        name: item.name,
+        quantity: item.quantity || 0,
+        reorderPoint: item.reorderPoint || 0,
+        value: itemValue
+      });
+      
+      return acc;
+    }, {
+      categories: {},
+      topItems: []
+    });
+    
+    // Sort and limit top items
+    const sortedTopItems = processedData.topItems
+      .sort((a: { quantity: number }, b: { quantity: number }) => b.quantity - a.quantity)
+      .slice(0, 10);
+    
+    // Prepare category data
+    const categoryLabels = Object.keys(processedData.categories);
+    const categoryData = categoryLabels.map((cat: string) => processedData.categories[cat].quantity);
+    const valueData = categoryLabels.map((cat: string) => processedData.categories[cat].value);
+    const movementData = categoryLabels.map((cat: string) => ({
+      stockIn: processedData.categories[cat].stockIn,
+      stockOut: processedData.categories[cat].stockOut
+    }));
+
+    // Generate colors efficiently
+    const generateColors = (count: number) => {
+      const colors = [];
+      const step = 360 / count;
+      for (let i = 0; i < count; i++) {
+        const hue = i * step;
+        colors.push(`hsla(${hue}, 70%, 60%, 0.7)`);
+      }
+      return colors;
+    };
+
+    const categoryColors = generateColors(categoryLabels.length);
     
     setChartData({
-      labels: sortedData.map(item => item.name),
-      datasets: [
-        {
-          label: 'Current Quantity',
-          data: sortedData.map(item => item.quantity),
-          backgroundColor: 'rgba(59, 130, 246, 0.5)',
-          borderColor: 'rgb(59, 130, 246)',
+      barData: {
+        labels: sortedTopItems.map((item: { name: string }) => item.name),
+        datasets: [
+          {
+            label: 'Current Quantity',
+            data: sortedTopItems.map((item: { quantity: number }) => item.quantity),
+            backgroundColor: 'rgba(59, 130, 246, 0.5)',
+            borderColor: 'rgb(59, 130, 246)',
+            borderWidth: 1
+          },
+          {
+            label: 'Reorder Point',
+            data: sortedTopItems.map((item: { reorderPoint: number }) => item.reorderPoint),
+            backgroundColor: 'rgba(245, 158, 11, 0.5)',
+            borderColor: 'rgb(245, 158, 11)',
+            borderWidth: 1
+          }
+        ]
+      },
+      pieData: {
+        labels: categoryLabels,
+        datasets: [{
+          data: categoryData,
+          backgroundColor: categoryColors,
+          borderColor: categoryColors.map(color => color.replace('0.7', '1')),
           borderWidth: 1
-        },
-        {
-          label: 'Reorder Point',
-          data: sortedData.map(item => item.reorderPoint),
-          backgroundColor: 'rgba(245, 158, 11, 0.5)',
-          borderColor: 'rgb(245, 158, 11)',
+        }]
+      },
+      valueData: {
+        labels: categoryLabels,
+        datasets: [{
+          label: 'Total Value (₹)',
+          data: valueData,
+          backgroundColor: 'rgba(16, 185, 129, 0.5)',
+          borderColor: 'rgb(16, 185, 129)',
+          borderWidth: 2,
+          tension: 0.4,
+          fill: false
+        }]
+      },
+      movementData: {
+        labels: categoryLabels,
+        datasets: [
+          {
+            label: 'Stock In',
+            data: movementData.map(item => item.stockIn),
+            backgroundColor: 'rgba(16, 185, 129, 0.5)',
+            borderColor: 'rgb(16, 185, 129)',
+            borderWidth: 1
+          },
+          {
+            label: 'Stock Out',
+            data: movementData.map(item => item.stockOut),
+            backgroundColor: 'rgba(239, 68, 68, 0.5)',
+            borderColor: 'rgb(239, 68, 68)',
+            borderWidth: 1
+          }
+        ]
+      },
+      lowStockData: {
+        labels: categoryLabels,
+        datasets: [{
+          label: 'Items Below Reorder Point',
+          data: categoryLabels.map(cat => processedData.categories[cat].lowStockItems),
+          backgroundColor: categoryLabels.map(cat => 
+            processedData.categories[cat].lowStockItems > 0 
+              ? 'rgba(239, 68, 68, 0.7)' 
+              : 'rgba(16, 185, 129, 0.7)'
+          ),
+          borderColor: categoryLabels.map(cat => 
+            processedData.categories[cat].lowStockItems > 0 
+              ? 'rgb(239, 68, 68)' 
+              : 'rgb(16, 185, 129)'
+          ),
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      recentChangesData: {
+        labels: categoryLabels,
+        datasets: [{
+          label: 'Recent Stock Changes',
+          data: categoryLabels.map(cat => processedData.categories[cat].quantity - processedData.categories[cat].stockIn - processedData.categories[cat].stockOut),
+          backgroundColor: 'rgba(16, 185, 129, 0.5)',
+          borderColor: 'rgb(16, 185, 129)',
           borderWidth: 1
-        }
-      ]
+        }]
+      }
     });
   };
 
@@ -197,11 +382,6 @@ const Reports = () => {
       `${activeTab}-report-${new Date().toISOString().split('T')[0]}`
     );
   };
-
-  // Effect to apply filters when tab changes
-  useEffect(() => {
-    applyFilters();
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -348,39 +528,161 @@ const Reports = () => {
       
       {/* Chart */}
       {!loading && chartData && (
-        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">
-            {activeTab === 'transactions' ? 'Transaction Volume' : 'Inventory Levels'}
-          </h2>
-          <div className="h-80">
-            {activeTab === 'transactions' ? (
-              <Bar 
-                data={chartData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  scales: {
-                    y: {
-                      beginAtZero: true
-                    }
-                  }
-                }}
-              />
-            ) : (
-              <Bar 
-                data={chartData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  scales: {
-                    y: {
-                      beginAtZero: true
-                    }
-                  }
-                }}
-              />
-            )}
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {activeTab === 'inventory' ? (
+            <>
+              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-medium text-gray-900">
+                    Top Items by Quantity
+                  </h2>
+                  {isRefreshing && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
+                  )}
+                </div>
+                <div className="h-80">
+                  {chartData.barData && (
+                    <Bar 
+                      data={chartData.barData}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                          y: {
+                            beginAtZero: true
+                          }
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-medium text-gray-900">
+                    Inventory by Category
+                  </h2>
+                  {isRefreshing && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
+                  )}
+                </div>
+                <div className="h-80">
+                  {chartData.pieData && (
+                    <Pie 
+                      data={chartData.pieData}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                          legend: {
+                            position: 'right' as const,
+                          }
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-medium text-gray-900">
+                    Low Stock Alert
+                  </h2>
+                  {isRefreshing && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
+                  )}
+                </div>
+                <div className="h-80">
+                  {chartData.lowStockData && (
+                    <Bar 
+                      data={chartData.lowStockData}
+                      options={{
+                        indexAxis: 'y' as const,
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                          x: {
+                            beginAtZero: true,
+                            title: {
+                              display: true,
+                              text: 'Number of Items'
+                            }
+                          }
+                        },
+                        plugins: {
+                          tooltip: {
+                            callbacks: {
+                              label: function(context) {
+                                const value = context.parsed.x;
+                                return `${value} item${value !== 1 ? 's' : ''} below reorder point`;
+                              }
+                            }
+                          },
+                          legend: {
+                            display: false
+                          }
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-medium text-gray-900">
+                    Recent Stock Changes
+                  </h2>
+                  {isRefreshing && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
+                  )}
+                </div>
+                <div className="h-80">
+                  {chartData.recentChangesData && (
+                    <Line 
+                      data={chartData.recentChangesData}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                          y: {
+                            beginAtZero: true
+                          }
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">
+                Transaction Volume
+              </h2>
+              <div className="h-80">
+                {chartData.labels && chartData.datasets && (
+                  <Bar 
+                    data={{
+                      labels: chartData.labels,
+                      datasets: chartData.datasets
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      scales: {
+                        y: {
+                          beginAtZero: true
+                        }
+                      }
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
       
@@ -400,9 +702,9 @@ const Reports = () => {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            {activeTab === 'transactions' ? (
+        activeTab === 'transactions' && (
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -460,97 +762,19 @@ const Reports = () => {
                         {typeof transaction.totalValue === 'number' ? `₹${transaction.totalValue.toFixed(2)}` : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {transaction.notes || '-'}
+                        {transaction.notes ? (
+                          <span className="inline-block max-w-xs truncate" title={transaction.notes}>
+                            {transaction.notes}
+                          </span>
+                        ) : '-'}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            ) : (
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Item
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Category
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Current Qty
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Reorder Point
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Stock In
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Stock Out
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Turnover
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Value
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {reportData.map((item: any) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {item.name || '-'}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {item.updatedAt ? `Last updated: ${new Date(item.updatedAt).toLocaleString()}` : ''}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          {item.category || '-'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={`
-                          px-2 py-0.5 rounded text-xs font-medium
-                          ${typeof item.quantity === 'number' && typeof item.reorderPoint === 'number' && item.quantity <= item.reorderPoint 
-                            ? 'bg-red-100 text-red-800' 
-                            : 'bg-green-100 text-green-800'
-                          }
-                        `}>
-                          {typeof item.quantity === 'number' ? item.quantity : '-'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {typeof item.reorderPoint === 'number' ? item.reorderPoint : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <TrendingUp size={14} className="text-green-500 mr-1" />
-                          <span className="text-sm text-gray-900">{typeof item.stockIn === 'number' ? item.stockIn : '-'}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <ShoppingCart size={14} className="text-blue-500 mr-1" />
-                          <span className="text-sm text-gray-900">{typeof item.stockOut === 'number' ? item.stockOut : '-'}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {typeof item.turnover === 'number' && !isNaN(item.turnover) ? item.turnover.toFixed(2) : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {typeof item.value === 'number' ? `₹${item.value.toFixed(2)}` : '-'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            </div>
           </div>
-        </div>
+        )
       )}
     </div>
   );

@@ -11,6 +11,10 @@ router.post('/', authMiddleware, async (req: AuthRequest, res) => {
   session.startTransaction();
 
   try {
+    if (!req.user?.userId) {
+      throw new Error('User not authenticated');
+    }
+
     const { itemId, type, quantity, notes } = req.body;
 
     // Validate input
@@ -24,22 +28,17 @@ router.post('/', authMiddleware, async (req: AuthRequest, res) => {
       throw new Error('Item not found');
     }
 
-    // Validate stock for stock-out
-    if (type === 'stock-out' && item.quantity < quantity) {
-      throw new Error('Insufficient stock');
-    }
-
     // Update item quantity
     const newQuantity = type === 'stock-in' ? 
       item.quantity + quantity : 
-      item.quantity - quantity;
+      Math.max(0, item.quantity - quantity);
 
     // Update the item
     const updatedItem = await InventoryItem.findByIdAndUpdate(
       itemId,
       { 
         quantity: newQuantity,
-        status: newQuantity <= 0 ? 'out_of_stock' : 'in_stock',
+        status: newQuantity <= 0 ? 'out_of_stock' : newQuantity <= item.reorderPoint ? 'low_stock' : 'in_stock',
         lastRestocked: type === 'stock-in' ? new Date() : item.lastRestocked
       },
       { new: true, session }
@@ -51,7 +50,10 @@ router.post('/', authMiddleware, async (req: AuthRequest, res) => {
 
     // Create the transaction
     const transaction = new Transaction({
-      ...req.body,
+      itemId,
+      type,
+      quantity,
+      notes: notes || '',
       createdBy: req.user.userId,
       totalValue: quantity * item.unitPrice
     });

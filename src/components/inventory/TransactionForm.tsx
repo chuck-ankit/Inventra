@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { X } from 'lucide-react';
 import { InventoryItem } from '../../types';
+import { useNotificationStore } from '../../stores/notificationStore';
 
 interface TransactionFormProps {
   onClose: () => void;
@@ -17,8 +18,9 @@ const TransactionForm = ({ onClose, type, itemId, item, onSuccess }: Transaction
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(item || null);
+  const [success, setSuccess] = useState<string>('');
 
   // Fetch items and set initial selected item
   useEffect(() => {
@@ -50,43 +52,40 @@ const TransactionForm = ({ onClose, type, itemId, item, onSuccess }: Transaction
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setError('');
+    setSuccess('');
+
     if (!selectedItemId) {
       setError('Please select an item');
       return;
     }
-    
+
     if (quantity <= 0) {
-      setError('Quantity must be greater than zero');
+      setError('Quantity must be greater than 0');
       return;
     }
-    
-    if (type === 'stock-out' && selectedItem && quantity > selectedItem.quantity) {
-      setError(`Insufficient stock. Available: ${selectedItem.quantity}`);
-      return;
-    }
-    
+
     setLoading(true);
-    setError('');
-    
     try {
       let success = false;
-      
       if (type === 'stock-in') {
         success = await stockIn(selectedItemId, quantity, notes);
       } else {
-        success = await stockOut(selectedItemId, quantity, notes);
+        const response = await stockOut(selectedItemId, quantity, notes);
+        success = response;
       }
-      
-      if (!success) {
-        throw new Error(`Failed to process ${type} transaction`);
+
+      if (success) {
+        setSuccess('Transaction completed successfully');
+        setQuantity(0);
+        setNotes('');
+        setSelectedItemId('');
+        onSuccess?.();
+        onClose();
       }
-      
-      onClose();
-      onSuccess?.();
     } catch (err) {
-      console.error(`Error processing ${type}:`, err);
-      setError(err instanceof Error ? err.message : `Failed to process ${type} transaction`);
+      console.error('Transaction error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to process transaction');
     } finally {
       setLoading(false);
     }

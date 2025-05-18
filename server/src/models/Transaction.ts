@@ -6,6 +6,7 @@ const transactionSchema = new mongoose.Schema({
   type: { type: String, enum: ['stock-in', 'stock-out'], required: true },
   date: { type: Date, default: Date.now },
   notes: { type: String },
+  totalValue: { type: Number },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
 });
 

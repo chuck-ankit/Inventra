@@ -39,6 +39,9 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 
 // Create inventory item
 router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
+  const session = await InventoryItem.startSession();
+  session.startTransaction();
+
   try {
     if (!req.user?.userId) {
       return res.status(401).json({ message: 'User not authenticated' });
@@ -48,10 +51,26 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
       ...req.body,
       createdBy: req.user.userId
     });
-    await inventory.save();
+    await inventory.save({ session });
+
+    // Create initial stock-in transaction
+    const transaction = new Transaction({
+      itemId: inventory._id,
+      type: 'stock-in',
+      quantity: req.body.quantity || 0,
+      notes: 'Initial stock',
+      createdBy: req.user.userId,
+      totalValue: (req.body.quantity || 0) * (req.body.unitPrice || 0)
+    });
+    await transaction.save({ session });
+
+    await session.commitTransaction();
     res.status(201).json(inventory);
   } catch (error: any) {
+    await session.abortTransaction();
     res.status(400).json({ message: error.message });
+  } finally {
+    session.endSession();
   }
 });
 
@@ -165,11 +184,17 @@ router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) =>
       throw new Error('Inventory item not found or you do not have permission to delete it');
     }
 
-    // Check if item has any transactions
-    const transactions = await Transaction.find({ itemId }).session(session);
-
-    if (transactions.length > 0) {
-      throw new Error('Cannot delete item with associated transactions');
+    // Create stock-out transaction for remaining quantity
+    if (item.quantity > 0) {
+      const transaction = new Transaction({
+        itemId: item._id,
+        type: 'stock-out',
+        quantity: item.quantity,
+        notes: 'Item deleted - Remaining stock removed',
+        createdBy: req.user.userId,
+        totalValue: item.quantity * item.unitPrice
+      });
+      await transaction.save({ session });
     }
 
     // Delete any associated alerts
@@ -259,12 +284,24 @@ router.post('/stock-out', authMiddleware, async (req: AuthRequest, res: Response
       throw new Error('Item not found or you do not have permission to modify it');
     }
 
+    // Allow stock-out even if quantity is insufficient, but show a warning
     if (item.quantity < quantity) {
-      throw new Error('Insufficient stock');
-    }
+      // Create a warning notification
+      const warningNotification = new Alert({
+        itemId,
+        type: 'notification',
+        message: `Warning: Stock-out of ${quantity} units requested for ${item.name}, but only ${item.quantity} units available.`,
+        createdBy: req.user.userId,
+        priority: 'high'
+      });
+      await warningNotification.save({ session });
 
-    // Update item quantity
-    item.quantity -= quantity;
+      // Update item quantity to 0 since we're allowing the stock-out
+      item.quantity = 0;
+    } else {
+      // Update item quantity normally
+      item.quantity -= quantity;
+    }
     await item.save({ session });
 
     // Create transaction record
@@ -273,19 +310,30 @@ router.post('/stock-out', authMiddleware, async (req: AuthRequest, res: Response
       quantity,
       type: 'stock-out',
       notes,
-      createdBy: req.user.userId
+      createdBy: req.user.userId,
+      totalValue: quantity * item.unitPrice
     });
     await transaction.save({ session });
 
-    // Check if we need to create a low stock alert
+    // Create alerts if quantity is at or below reorder point
     if (item.quantity <= item.reorderPoint) {
+      // Create low stock alert
       const alert = new Alert({
         itemId,
-        type: 'low-stock',
-        message: `Low stock alert: ${item.name} is below reorder point`,
+        type: 'low_stock',
+        message: `Low stock alert: ${item.name} is below reorder point (${item.quantity} remaining)`,
         createdBy: req.user.userId
       });
       await alert.save({ session });
+
+      // Create notification for immediate attention
+      const notification = new Alert({
+        itemId,
+        type: 'out_of_stock',
+        message: `Warning: ${item.name} stock is low (${item.quantity} remaining). Consider restocking soon.`,
+        createdBy: req.user.userId
+      });
+      await notification.save({ session });
     }
 
     await session.commitTransaction();

@@ -17,15 +17,18 @@ class InventoryApiService {
 
     try {
       const response = await fetch(url, { ...defaultOptions, ...options });
+      const data = await response.json();
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
       }
       
-      return response.json();
+      return data;
     } catch (error) {
-      throw error;
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('An unexpected error occurred');
     }
   }
 
@@ -70,14 +73,22 @@ class InventoryApiService {
     });
   }
 
-  async stockOut(itemId: string, quantity: number, notes?: string): Promise<Transaction> {
+  async stockOut(itemId: string, quantity: number, notes?: string): Promise<{ success: boolean; item: InventoryItem; transaction: Transaction }> {
     if (!itemId) {
       throw new Error('Item ID is required for stock out');
     }
-    return this.request<Transaction>('/inventory/stock-out', {
-      method: 'POST',
-      body: JSON.stringify({ itemId, quantity, notes }),
-    });
+    try {
+      const response = await this.request<{ success: boolean; item: InventoryItem; transaction: Transaction }>('/inventory/stock-out', {
+        method: 'POST',
+        body: JSON.stringify({ itemId, quantity, notes }),
+      });
+      return response;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Failed to process stock-out transaction');
+    }
   }
 
   async searchItems(query: string): Promise<InventoryItem[]> {

@@ -14,8 +14,8 @@ interface InventoryState {
   addItem: (item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'createdBy' | 'updatedBy'>) => Promise<string>;
   updateItem: (id: string, item: Partial<InventoryItem>) => Promise<void>;
   deleteItem: (id: string) => Promise<void>;
-  stockIn: (id: string, quantity: number) => Promise<boolean>;
-  stockOut: (id: string, quantity: number) => Promise<boolean>;
+  stockIn: (id: string, quantity: number, notes: string) => Promise<boolean>;
+  stockOut: (id: string, quantity: number, notes: string) => Promise<boolean>;
   searchItems: (query: string) => Promise<InventoryItem[]>;
   clearError: () => void;
 }
@@ -88,10 +88,10 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     }
   },
 
-  stockIn: async (id, quantity) => {
+  stockIn: async (id, quantity, notes) => {
     set({ loading: true, error: null });
     try {
-      await inventoryApi.stockIn(id, quantity);
+      await inventoryApi.stockIn(id, quantity, notes);
       await get().fetchItems(get().pagination.page, get().pagination.pageSize);
       set({ loading: false });
       return true;
@@ -101,25 +101,33 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     }
   },
 
-  stockOut: async (id, quantity) => {
+  stockOut: async (id, quantity, notes) => {
     set({ loading: true, error: null });
     try {
-      const response = await inventoryApi.stockOut(id, quantity);
+      const response = await inventoryApi.stockOut(id, quantity, notes);
       await get().fetchItems(get().pagination.page, get().pagination.pageSize);
       set({ loading: false });
 
       // Check for low stock after stock out
-      const item = get().items.find(i => i.id === id);
-      if (item && item.quantity <= item.minStock) {
-        useNotificationStore.getState().addNotification({
-          type: 'warning',
-          message: `Low stock alert: ${item.name} is running low (${item.quantity} remaining)`,
-        });
+      const item = response.item;
+      if (item) {
+        if (item.quantity === 0) {
+          useNotificationStore.getState().addNotification({
+            type: 'warning',
+            message: `Stock-out complete: ${item.name} is now out of stock.`,
+          });
+        } else if (item.quantity <= item.reorderPoint) {
+          useNotificationStore.getState().addNotification({
+            type: 'warning',
+            message: `Low stock alert: ${item.name} is running low (${item.quantity} remaining)`,
+          });
+        }
       }
 
-      return true;
+      return response.success;
     } catch (error) {
-      set({ error: 'Failed to update stock', loading: false });
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update stock';
+      set({ error: errorMessage, loading: false });
       return false;
     }
   },

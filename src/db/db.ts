@@ -11,11 +11,23 @@ class StockManagerDatabase extends Dexie {
   constructor() {
     super('StockManagerDB');
     
+    // Define all versions
     this.version(1).stores({
       users: 'id, email, username',
       inventory: 'id, name, category, *tags',
       transactions: 'id, itemId, date, type',
       lowStockAlerts: 'id, itemId, date, resolved'
+    });
+
+    // Add version 20 with the same schema
+    this.version(20).stores({
+      users: 'id, email, username',
+      inventory: 'id, name, category, *tags',
+      transactions: 'id, itemId, date, type',
+      lowStockAlerts: 'id, itemId, date, resolved'
+    }).upgrade(tx => {
+      // No schema changes, just version bump
+      return Promise.resolve();
     });
   }
 
