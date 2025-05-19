@@ -1,6 +1,6 @@
 import { User, PasswordUpdate } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 class AuthService {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -12,7 +12,8 @@ class AuthService {
     };
 
     try {
-      const response = await fetch(`${API_URL}${endpoint}`, {
+      const formattedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      const response = await fetch(`${API_URL}${formattedEndpoint}`, {
         ...options,
         headers,
         credentials: 'include',
@@ -38,7 +39,7 @@ class AuthService {
   }
 
   async login(identifier: string, password: string): Promise<{ user: User; token: string }> {
-    const response = await this.request<{ user: User; token: string }>('/users/login', {
+    const response = await this.request<{ user: User; token: string }>('/api/users/login', {
       method: 'POST',
       body: JSON.stringify({ identifier, password }),
     });
@@ -51,7 +52,7 @@ class AuthService {
   }
 
   async register(username: string, email: string, password: string): Promise<{ user: User; token: string }> {
-    const response = await this.request<{ user: User; token: string }>('/users/register', {
+    const response = await this.request<{ user: User; token: string }>('/api/users/register', {
       method: 'POST',
       body: JSON.stringify({ username, email, password }),
     });
@@ -64,11 +65,11 @@ class AuthService {
   }
 
   async getCurrentUser(): Promise<User> {
-    return this.request<User>('/users/profile');
+    return this.request<User>('/api/users/profile');
   }
 
   async updateProfile(updates: Partial<User>): Promise<{ user: User; token: string }> {
-    const response = await this.request<{ user: User; token: string }>('/users/profile', {
+    const response = await this.request<{ user: User; token: string }>('/api/users/profile', {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -81,7 +82,7 @@ class AuthService {
   }
 
   async updatePassword(passwordUpdate: { currentPassword: string; password: string }): Promise<{ user: User; token: string }> {
-    const response = await this.request<{ user: User; token: string }>('/users/profile', {
+    const response = await this.request<{ user: User; token: string }>('/api/users/profile', {
       method: 'PATCH',
       body: JSON.stringify(passwordUpdate),
     });

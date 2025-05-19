@@ -8,8 +8,20 @@ dotenv.config();
 const { check, validationResult } = validator as any;
 
 // Get environment variables with fallbacks
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5175';
-const API_URL = process.env.API_URL || 'http://localhost:5000';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5174';
+const API_URL = process.env.API_URL || 'http://localhost:3000';
+
+// Development origins for CORS
+const DEV_ORIGINS = [
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5174',
+  'http://127.0.0.1:5175',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173'
+];
 
 // Rate limiting configuration
 export const loginLimiter = rateLimit({
@@ -74,7 +86,7 @@ export const securityHeaders = {
       scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", FRONTEND_URL, API_URL],
+      connectSrc: ["'self'", FRONTEND_URL, API_URL, ...DEV_ORIGINS],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -100,9 +112,25 @@ export const securityHeaders = {
 
 // CORS configuration
 export const corsOptions = {
-  origin: [FRONTEND_URL, 'http://localhost:3000', 'http://localhost:5175'],
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    const allowedOrigins = [FRONTEND_URL, ...DEV_ORIGINS];
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
   credentials: true,
-  maxAge: 86400 // 24 hours
+  maxAge: 86400, // 24 hours
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }; 

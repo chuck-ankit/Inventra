@@ -38,18 +38,18 @@ class InventoryApiService {
       pageSize: pageSize.toString(),
       ...(category && { category })
     });
-    return this.request<{ items: InventoryItem[]; total: number; page: number; pageSize: number }>(`/inventory?${queryParams}`);
+    return this.request<{ items: InventoryItem[]; total: number; page: number; pageSize: number }>(`/api/inventory?${queryParams}`);
   }
 
   async addItem(item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'createdBy' | 'updatedBy'>): Promise<InventoryItem> {
-    return this.request<InventoryItem>('/inventory', {
+    return this.request<InventoryItem>('/api/inventory', {
       method: 'POST',
       body: JSON.stringify(item),
     });
   }
 
   async updateItem(id: string, updates: Partial<InventoryItem>): Promise<InventoryItem> {
-    const response = await this.request<InventoryItem>(`/inventory/${id}`, {
+    const response = await this.request<InventoryItem>(`/api/inventory/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
@@ -57,7 +57,7 @@ class InventoryApiService {
   }
 
   async deleteItem(id: string): Promise<{ success: boolean; message?: string }> {
-    const response = await this.request<{ success: boolean; message?: string }>(`/inventory/${id}`, {
+    const response = await this.request<{ success: boolean; message?: string }>(`/api/inventory/${id}`, {
       method: 'DELETE',
     });
     return response;
@@ -67,7 +67,7 @@ class InventoryApiService {
     if (!itemId) {
       throw new Error('Item ID is required for stock in');
     }
-    return this.request<Transaction>('/inventory/stock-in', {
+    return this.request<Transaction>('/api/inventory/stock-in', {
       method: 'POST',
       body: JSON.stringify({ itemId, quantity, notes }),
     });
@@ -78,7 +78,7 @@ class InventoryApiService {
       throw new Error('Item ID is required for stock out');
     }
     try {
-      const response = await this.request<{ success: boolean; item: InventoryItem; transaction: Transaction }>('/inventory/stock-out', {
+      const response = await this.request<{ success: boolean; item: InventoryItem; transaction: Transaction }>('/api/inventory/stock-out', {
         method: 'POST',
         body: JSON.stringify({ itemId, quantity, notes }),
       });
@@ -92,7 +92,7 @@ class InventoryApiService {
   }
 
   async searchItems(query: string): Promise<InventoryItem[]> {
-    return this.request<InventoryItem[]>(`/inventory/search?q=${encodeURIComponent(query)}`);
+    return this.request<InventoryItem[]>(`/api/inventory/search?q=${encodeURIComponent(query)}`);
   }
 }
 

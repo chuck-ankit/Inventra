@@ -44,7 +44,7 @@ class ReportApiService {
       queryParams.append('transactionType', filter.type);
     }
     
-    return this.request(`/reports/transactions?${queryParams.toString()}`);
+    return this.request(`/api/reports/transactions?${queryParams.toString()}`);
   }
 
   async getInventoryReport(filter: ReportFilter = {}) {
@@ -62,7 +62,7 @@ class ReportApiService {
       queryParams.append('category', filter.category);
     }
     
-    return this.request(`/reports/inventory?${queryParams.toString()}`);
+    return this.request(`/api/reports/inventory?${queryParams.toString()}`);
   }
 }
 

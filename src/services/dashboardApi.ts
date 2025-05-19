@@ -31,15 +31,15 @@ class DashboardApiService {
   }
 
   async getDashboardStats(): Promise<DashboardStats> {
-    return this.request<DashboardStats>('/dashboard/stats');
+    return this.request<DashboardStats>('/api/dashboard/stats');
   }
 
   async getTransactionHistory(days: number = 7): Promise<TransactionHistory> {
-    return this.request<TransactionHistory>(`/dashboard/transactions?days=${days}`);
+    return this.request<TransactionHistory>(`/api/dashboard/transactions?days=${days}`);
   }
 
   async getCategoryDistribution(): Promise<{ labels: string[], data: number[] }> {
-    return this.request<{ labels: string[], data: number[] }>('/dashboard/categories');
+    return this.request<{ labels: string[], data: number[] }>('/api/dashboard/categories');
   }
 }
 
