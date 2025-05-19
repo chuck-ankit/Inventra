@@ -67,7 +67,6 @@ router.get('/transactions', authMiddleware, async (req: AuthRequest, res) => {
     
     res.json(reportData);
   } catch (error: any) {
-    console.error('Error generating transaction report:', error);
     res.status(500).json({ message: error.message });
   }
 });
@@ -137,7 +136,6 @@ router.get('/inventory', authMiddleware, async (req: AuthRequest, res) => {
     
     res.json(reportData);
   } catch (error: any) {
-    console.error('Error generating inventory report:', error);
     res.status(500).json({ message: error.message });
   }
 });

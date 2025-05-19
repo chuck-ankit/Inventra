@@ -71,7 +71,6 @@ export const handleValidationErrors = (req: Request, res: Response, next: NextFu
 
 // Error handler middleware
 export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error(err.stack);
   res.status(err.status || 500).json({
     message: process.env.NODE_ENV === 'development' ? err.message : 'An error occurred',
     error: process.env.NODE_ENV === 'development' ? err : undefined

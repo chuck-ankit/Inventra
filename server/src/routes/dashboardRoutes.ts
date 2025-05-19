@@ -67,7 +67,6 @@ router.get('/stats', authMiddleware, async (req: AuthRequest, res) => {
           notes: t.notes || ''
         };
       } catch (error) {
-        console.error('Error formatting transaction:', error);
         return {
           id: t._id.toString(),
           itemId: '',
@@ -89,7 +88,6 @@ router.get('/stats', authMiddleware, async (req: AuthRequest, res) => {
       recentTransactions: formattedTransactions
     });
   } catch (error) {
-    console.error('Error fetching dashboard stats:', error);
     res.status(500).json({ message: 'Failed to fetch dashboard statistics' });
   }
 });
@@ -158,7 +156,6 @@ router.get('/transactions', authMiddleware, async (req: AuthRequest, res) => {
           notes: t.notes || ''
         };
       } catch (error) {
-        console.error('Error formatting transaction:', error);
         return {
           id: t._id.toString(),
           itemId: '',
@@ -180,11 +177,8 @@ router.get('/transactions', authMiddleware, async (req: AuthRequest, res) => {
       transactions: transactionHistory
     };
 
-    console.log('Transaction history response:', response); // Debug log
-
     res.json(response);
   } catch (error) {
-    console.error('Error fetching transaction history:', error);
     res.status(500).json({ message: 'Failed to fetch transaction history' });
   }
 });
@@ -214,7 +208,6 @@ router.get('/categories', authMiddleware, async (req: AuthRequest, res) => {
       data
     });
   } catch (error) {
-    console.error('Error fetching category distribution:', error);
     res.status(500).json({ message: 'Failed to fetch category distribution' });
   }
 });
